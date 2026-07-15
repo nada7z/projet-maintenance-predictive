@@ -1,10 +1,26 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import api from '../api/axiosConfig'
-import { Bell, CheckCircle, AlertTriangle, Info, Clock, Eye } from 'lucide-react'
+import { Bell, CheckCircle, AlertTriangle, Info, Clock, CheckCheck } from 'lucide-react'
+import Badge, { ALERT_SEVERITY } from '../components/Badge'
+import { ListSkeleton, EmptyState } from '../components/ListState'
+
+const SEVERITY_ICON = {
+    critical: { icon: AlertTriangle, bg: 'bg-red-50', color: 'text-red-600' },
+    warning: { icon: AlertTriangle, bg: 'bg-amber-50', color: 'text-amber-600' },
+    info: { icon: Info, bg: 'bg-blue-50', color: 'text-blue-600' },
+}
+
+const FILTERS = [
+    { value: '', label: 'Toutes' },
+    { value: 'critical', label: 'Critique' },
+    { value: 'warning', label: 'Avertissement' },
+    { value: 'info', label: 'Information' },
+]
 
 const AlertsList = () => {
     const [alerts, setAlerts] = useState([])
     const [loading, setLoading] = useState(true)
+    const [filter, setFilter] = useState('')
 
     useEffect(() => {
         const fetchAlerts = async () => {
@@ -23,95 +39,119 @@ const AlertsList = () => {
     const markAsRead = async (id) => {
         try {
             await api.post(`/alerts/${id}/mark_read/`)
-            setAlerts(prev => prev.map(alert => alert.id === id ? { ...alert, is_read: true } : alert))
+            setAlerts((prev) => prev.map((alert) => (alert.id === id ? { ...alert, is_read: true } : alert)))
         } catch (error) {
             console.error('Erreur lors du marquage', error)
         }
     }
 
-    const getSeverityIcon = (severity) => {
-        if (severity === 'critical') return <AlertTriangle size={16} className="text-red-500" />
-        if (severity === 'warning') return <AlertTriangle size={16} className="text-yellow-500" />
-        return <Info size={16} className="text-blue-500" />
-    }
-
-    const getSeverityBadge = (severity) => {
-        const colors = {
-            critical: 'bg-red-100 text-red-700',
-            warning: 'bg-yellow-100 text-yellow-700',
-            info: 'bg-blue-100 text-blue-700',
+    const markAllAsRead = async () => {
+        const unread = alerts.filter((a) => !a.is_read)
+        setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true })))
+        try {
+            await Promise.all(unread.map((a) => api.post(`/alerts/${a.id}/mark_read/`)))
+        } catch (error) {
+            console.error('Erreur lors du marquage global', error)
         }
-        return (
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[severity] || 'bg-gray-100'}`}>
-                {severity}
-            </span>
-        )
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        )
-    }
-
-    const unreadCount = alerts.filter(a => !a.is_read).length
+    const filteredAlerts = useMemo(
+        () => (filter ? alerts.filter((a) => a.severity === filter) : alerts),
+        [alerts, filter]
+    )
+    const unreadCount = alerts.filter((a) => !a.is_read).length
 
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-800">Alertes</h2>
-                    <p className="text-sm text-gray-500">{unreadCount} non lues</p>
+                    <h2 className="text-lg font-semibold text-slate-900">Alertes</h2>
+                    <p className="text-sm text-slate-500 mt-0.5">
+                        {unreadCount > 0 ? `${unreadCount} non lue${unreadCount > 1 ? 's' : ''}` : 'Tout est à jour'}
+                    </p>
                 </div>
-                <Bell size={20} className="text-gray-400" />
+                {unreadCount > 0 && (
+                    <button
+                        onClick={markAllAsRead}
+                        className="flex items-center gap-1.5 text-sm font-medium text-slate-600 border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors duration-150"
+                    >
+                        <CheckCheck size={15} />
+                        Tout marquer comme lu
+                    </button>
+                )}
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
-                <div className="divide-y divide-gray-100">
-                    {alerts.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-sm">Aucune alerte</div>
-                    ) : (
-                        alerts.map((alert) => (
-                            <div
-                                key={alert.id}
-                                className={`flex items-start gap-4 p-4 transition ${!alert.is_read ? 'bg-blue-50/50' : ''}`}
-                            >
-                                <div className="flex-shrink-0 mt-0.5">
-                                    {getSeverityIcon(alert.severity)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-sm font-medium text-gray-800">{alert.machine?.name || 'Machine'}</p>
-                                        {!alert.is_read && (
-                                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                                        )}
-                                        {getSeverityBadge(alert.severity)}
+            <div className="flex flex-wrap gap-2">
+                {FILTERS.map((f) => (
+                    <button
+                        key={f.value}
+                        onClick={() => setFilter(f.value)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors duration-150 ${filter === f.value
+                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                    >
+                        {f.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {loading && <ListSkeleton rows={5} />}
+
+                {!loading && filteredAlerts.length === 0 && (
+                    <EmptyState
+                        icon={Bell}
+                        title="Aucune alerte"
+                        description={filter ? "Aucune alerte ne correspond à ce filtre." : "Vous serez notifié ici en cas de risque ou d'échéance."}
+                    />
+                )}
+
+                {!loading && filteredAlerts.length > 0 && (
+                    <div className="divide-y divide-slate-100">
+                        {filteredAlerts.map((alert) => {
+                            const severity = SEVERITY_ICON[alert.severity] || SEVERITY_ICON.info
+                            const badge = ALERT_SEVERITY[alert.severity] || { label: alert.severity, tone: 'neutral' }
+                            const Icon = severity.icon
+                            return (
+                                <div
+                                    key={alert.id}
+                                    className={`flex items-start gap-4 p-4 transition-colors duration-150 ${!alert.is_read ? 'bg-blue-50/40' : ''
+                                        }`}
+                                >
+                                    <div className={`w-9 h-9 rounded-lg ${severity.bg} flex items-center justify-center flex-shrink-0`}>
+                                        <Icon size={16} className={severity.color} />
                                     </div>
-                                    <p className="text-sm text-gray-600 mt-0.5">{alert.message}</p>
-                                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                                        <Clock size={12} />
-                                        {new Date(alert.created_at).toLocaleString()}
-                                    </p>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-sm font-medium text-slate-800">{alert.machine?.name || 'Machine'}</p>
+                                            {!alert.is_read && <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />}
+                                            <Badge tone={badge.tone}>{badge.label}</Badge>
+                                        </div>
+                                        <p className="text-sm text-slate-600 mt-1">{alert.message}</p>
+                                        <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+                                            <Clock size={12} />
+                                            {new Date(alert.created_at).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="flex-shrink-0">
+                                        {!alert.is_read ? (
+                                            <button
+                                                onClick={() => markAsRead(alert.id)}
+                                                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors duration-150"
+                                            >
+                                                <CheckCircle size={14} />
+                                                <span className="hidden sm:inline">Marquer lu</span>
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs text-slate-400">Lu</span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex-shrink-0">
-                                    {!alert.is_read ? (
-                                        <button
-                                            onClick={() => markAsRead(alert.id)}
-                                            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 transition"
-                                        >
-                                            <CheckCircle size={16} />
-                                            <span className="hidden sm:inline">Marquer lu</span>
-                                        </button>
-                                    ) : (
-                                        <span className="text-xs text-gray-400">Lu</span>
-                                    )}
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
+                            )
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     )

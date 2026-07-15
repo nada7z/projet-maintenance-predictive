@@ -169,7 +169,7 @@ const InterventionForm = () => {
                                         <option value="">Non assigné</option>
                                         {users.map((u) => (
                                             <option key={u.id} value={u.id}>
-                                                {u.username}
+                                                {u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}
                                             </option>
                                         ))}
                                     </Select>

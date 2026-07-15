@@ -1,92 +1,144 @@
 import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { User, Lock, LogIn, Building2 } from 'lucide-react'
+import { LogIn, Building2, AlertCircle, Loader2, Gauge, Cpu, Bell } from 'lucide-react'
+import { Field, Input } from '../components/FormField'
+
+const FEATURES = [
+    { icon: Gauge, text: 'Disponibilité et MTTR suivis en temps réel' },
+    { icon: Cpu, text: 'Scores de risque calculés par intelligence artificielle' },
+    { icon: Bell, text: "Alertes automatiques avant la panne" },
+]
 
 const Login = () => {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
     const { login } = useAuth()
     const navigate = useNavigate()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
         setLoading(true)
-        const success = await login(username, password)
-        setLoading(false)
-        if (success) navigate('/dashboard')
-        else alert('Identifiants incorrects')
+        setError('')
+        try {
+            const success = await login(username, password)
+            if (success) {
+                navigate('/dashboard')
+            } else {
+                setError('Identifiants incorrects. Vérifiez votre nom d\'utilisateur et votre mot de passe.')
+            }
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 relative overflow-hidden">
-            {/* Background decorations */}
-            <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-300/30 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-300/30 rounded-full blur-3xl"></div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-md">
-                <div className="w-40 h-40 border-2 border-white/30 rounded-full absolute -top-10 -right-10 blur-sm"></div>
-                <div className="w-20 h-20 border-2 border-white/30 rounded-full absolute -bottom-5 -left-5 blur-sm"></div>
+        <div className="min-h-screen flex bg-slate-50">
+            {/* Panneau de marque */}
+            <div className="hidden lg:flex lg:w-[42%] bg-slate-900 flex-col justify-between px-12 py-12 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.04]" style={{
+                    backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+                    backgroundSize: '32px 32px'
+                }} />
+
+                <div className="relative">
+                    <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                        OCP
+                    </div>
+                </div>
+
+                <div className="relative">
+                    <h1 className="text-3xl font-semibold text-white tracking-tight leading-snug">
+                        Plateforme de maintenance prédictive
+                    </h1>
+                    <p className="text-slate-400 text-sm mt-3 max-w-sm">
+                        Suivi des équipements, planification des interventions et détection anticipée des pannes.
+                    </p>
+
+                    <div className="mt-10 space-y-4">
+                        {FEATURES.map((f, i) => {
+                            const Icon = f.icon
+                            return (
+                                <div key={i} className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                        <Icon size={15} className="text-blue-400" />
+                                    </div>
+                                    <span className="text-sm text-slate-300">{f.text}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                <p className="relative text-xs text-slate-500">© 2026 OCP Maintenance — Projet personnel</p>
             </div>
 
-            <div className="relative z-10 w-full max-w-md">
-                <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/40 p-8">
-                    <div className="flex justify-center mb-8">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                            <Building2 className="text-white" size={32} />
+            {/* Formulaire */}
+            <div className="flex-1 flex items-center justify-center p-6">
+                <div className="w-full max-w-sm">
+                    <div className="lg:hidden flex justify-center mb-6">
+                        <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                            OCP
                         </div>
                     </div>
-                    <h2 className="text-3xl font-bold text-gray-800 text-center">Bienvenue</h2>
-                    <p className="text-gray-500 text-center mt-1 mb-8">Plateforme de Maintenance Prédictive</p>
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom d'utilisateur</label>
-                            <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="Entrez votre nom"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition outline-none"
-                                    required
-                                />
-                            </div>
-                        </div>
+                    <div className="text-center lg:text-left mb-8">
+                        <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Bienvenue</h2>
+                        <p className="text-slate-500 text-sm mt-1">Connectez-vous pour accéder à votre tableau de bord</p>
+                    </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Mot de passe</label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                <input
-                                    type="password"
-                                    placeholder="Entrez votre mot de passe"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition outline-none"
-                                    required
-                                />
-                            </div>
+                    {error && (
+                        <div className="mb-5 flex items-start gap-2.5 p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg text-sm">
+                            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                            <span>{error}</span>
                         </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <Field label="Nom d'utilisateur">
+                            <Input
+                                type="text"
+                                placeholder="j.dupont"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                autoComplete="username"
+                                required
+                            />
+                        </Field>
+
+                        <Field label="Mot de passe">
+                            <Input
+                                type="password"
+                                placeholder="••••••••"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                autoComplete="current-password"
+                                required
+                            />
+                        </Field>
 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-blue-200 hover:scale-[1.02] transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70"
+                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-150 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                         >
-                            {loading ? 'Connexion...' : (
+                            {loading ? (
+                                <Loader2 size={17} className="animate-spin" />
+                            ) : (
                                 <>
-                                    <LogIn size={20} />
+                                    <LogIn size={16} />
                                     Se connecter
                                 </>
                             )}
                         </button>
                     </form>
+
+                    <p className="lg:hidden text-center text-slate-400 text-xs mt-8">
+                        © 2026 Projet — Plateforme de maintenance prédictive
+                    </p>
                 </div>
-                <p className="text-center text-gray-400 text-xs mt-6">
-                    © 2026 OCP Maintenance – Projet Personnel
-                </p>
             </div>
         </div>
     )

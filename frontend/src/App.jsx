@@ -88,6 +88,21 @@ function App() {
             <Layout><ReportForm /></Layout>
           </PrivateRoute>
         } />
+        <Route path="/equipment/new" element={
+          <PrivateRoute>
+            <Layout><EquipmentForm /></Layout>
+          </PrivateRoute>
+        } />
+        <Route path="/equipment/edit/:id" element={
+          <PrivateRoute>
+            <Layout><EquipmentForm /></Layout>
+          </PrivateRoute>
+        } />
+        <Route path="/interventions/:id/edit" element={
+          <PrivateRoute>
+            <Layout><InterventionForm /></Layout>
+          </PrivateRoute>
+        } />
         {/* Redirection par défaut */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>

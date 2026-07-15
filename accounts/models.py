@@ -10,4 +10,6 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='tech')
 
     def __str__(self):
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name} ({self.get_role_display()})"
         return f"{self.username} ({self.get_role_display()})"

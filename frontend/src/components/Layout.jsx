@@ -112,7 +112,7 @@ const Layout = ({ children }) => {
                         {sidebarOpen && (
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-slate-700 truncate">
-                                    {user?.username}
+                                    {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.username}
                                 </p>
                                 <p className="text-xs text-slate-400 truncate">
                                     {user?.role || 'Utilisateur'}

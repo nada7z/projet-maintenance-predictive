@@ -1,5 +1,5 @@
 import React from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Search } from 'lucide-react'
 
 export const fieldClass =
     'w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 transition-colors duration-150 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none disabled:bg-slate-50 disabled:text-slate-400'
@@ -26,6 +26,13 @@ export const Input = (props) => <input {...props} className={`${fieldClass} ${pr
 
 export const Textarea = (props) => (
     <textarea {...props} className={`${fieldClass} resize-none ${props.className || ''}`} />
+)
+
+export const SearchInput = ({ className = '', ...props }) => (
+    <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input {...props} className={`${fieldClass} pl-9 ${className}`} />
+    </div>
 )
 
 export const Select = ({ children, className = '', ...props }) => (

@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import api from '../api/axiosConfig'
 import {
     ArrowLeft,
@@ -37,6 +37,7 @@ const Field = ({ label, required, children }) => (
 
 const EquipmentForm = () => {
     const navigate = useNavigate()
+    const { id } = useParams() // Récupère l'ID depuis l'URL
     const [formData, setFormData] = useState({
         name: '',
         model: '',
@@ -46,7 +47,29 @@ const EquipmentForm = () => {
         criticality: 'medium',
     })
     const [loading, setLoading] = useState(false)
+    const [initializing, setInitializing] = useState(false)
     const [error, setError] = useState('')
+
+    const isEditMode = Boolean(id) // Si id existe, on est en mode édition
+
+    // Charger les données existantes si on est en mode édition
+    useEffect(() => {
+        if (isEditMode) {
+            const fetchEquipment = async () => {
+                setInitializing(true)
+                try {
+                    const response = await api.get(`/equipment/${id}/`)
+                    setFormData(response.data)
+                } catch (err) {
+                    console.error('Erreur chargement équipement', err)
+                    setError('Impossible de charger les données de l\'équipement.')
+                } finally {
+                    setInitializing(false)
+                }
+            }
+            fetchEquipment()
+        }
+    }, [id])
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -58,14 +81,38 @@ const EquipmentForm = () => {
         setLoading(true)
         setError('')
         try {
-            await api.post('/equipment/', formData)
+            if (isEditMode) {
+                // Mise à jour
+                await api.put(`/equipment/${id}/`, formData)
+            } else {
+                // Création
+                await api.post('/equipment/', formData)
+            }
             navigate('/equipment')
         } catch (err) {
             console.error(err)
-            setError("Erreur lors de l'ajout de l'équipement. Vérifiez les champs.")
+            setError(
+                isEditMode
+                    ? 'Erreur lors de la mise à jour de l\'équipement.'
+                    : 'Erreur lors de l\'ajout de l\'équipement.'
+            )
         } finally {
             setLoading(false)
         }
+    }
+
+    // État de chargement initial
+    if (initializing) {
+        return (
+            <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 p-6 animate-pulse space-y-4">
+                <div className="h-5 w-48 bg-slate-200 rounded" />
+                <div className="grid grid-cols-2 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-10 bg-slate-100 rounded-lg" />
+                    ))}
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -84,9 +131,13 @@ const EquipmentForm = () => {
                         <Package size={18} className="text-blue-600" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-slate-900">Ajouter un équipement</h2>
+                        <h2 className="text-base font-semibold text-slate-900">
+                            {isEditMode ? 'Modifier l\'équipement' : 'Ajouter un équipement'}
+                        </h2>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Renseignez les informations de la machine pour l'enregistrer dans le parc.
+                            {isEditMode
+                                ? 'Mettez à jour les informations de la machine.'
+                                : 'Renseignez les informations de la machine pour l\'enregistrer dans le parc.'}
                         </p>
                     </div>
                 </div>
@@ -213,7 +264,9 @@ const EquipmentForm = () => {
                             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {loading && <Loader2 size={15} className="animate-spin" />}
-                            {loading ? 'Ajout en cours…' : "Ajouter l'équipement"}
+                            {loading
+                                ? isEditMode ? 'Mise à jour…' : 'Ajout en cours…'
+                                : isEditMode ? 'Mettre à jour' : "Ajouter l'équipement"}
                         </button>
                     </div>
                 </form>

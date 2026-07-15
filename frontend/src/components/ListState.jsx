@@ -12,6 +12,20 @@ export const TableSkeleton = ({ columns = 5, rows = 5 }) => (
     </div>
 )
 
+export const ListSkeleton = ({ rows = 5 }) => (
+    <div className="animate-pulse divide-y divide-slate-100">
+        {Array.from({ length: rows }).map((_, r) => (
+            <div key={r} className="flex items-start gap-4 p-4">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-1/3 bg-slate-100 rounded" />
+                    <div className="h-3 w-2/3 bg-slate-100 rounded" />
+                </div>
+            </div>
+        ))}
+    </div>
+)
+
 export const EmptyState = ({ icon: Icon, title, description }) => (
     <div className="flex flex-col items-center justify-center py-14 px-4 text-center">
         {Icon && (

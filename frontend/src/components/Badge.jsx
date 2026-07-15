@@ -38,4 +38,22 @@ export const REPORT_FORMAT = {
     excel: { label: 'EXCEL', tone: 'success' },
 }
 
+export const EQUIPMENT_STATUS = {
+    active: { label: 'Actif', tone: 'success' },
+    maintenance: { label: 'Maintenance', tone: 'warning' },
+    out_of_service: { label: 'Hors service', tone: 'danger' },
+}
+
+export const EQUIPMENT_CRITICALITY = {
+    low: { label: 'Basse', tone: 'neutral' },
+    medium: { label: 'Moyenne', tone: 'warning' },
+    high: { label: 'Élevée', tone: 'danger' },
+}
+
+export const ALERT_SEVERITY = {
+    critical: { label: 'Critique', tone: 'danger' },
+    warning: { label: 'Avertissement', tone: 'warning' },
+    info: { label: 'Information', tone: 'info' },
+}
+
 export default Badge

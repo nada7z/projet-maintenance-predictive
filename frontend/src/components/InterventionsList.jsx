@@ -75,11 +75,11 @@ const InterventionsList = () => {
                                     return (
                                         <tr key={inv.id} className="hover:bg-slate-50 transition-colors duration-150">
                                             <td className="px-4 py-3.5">
-                                                <p className="font-medium text-slate-800">{inv.machine?.name || 'N/A'}</p>
+                                                <p className="font-medium text-slate-800">{inv.machine || 'N/A'}</p>
                                                 <p className="text-xs text-slate-400 mt-0.5 capitalize">{inv.type}</p>
                                             </td>
                                             <td className="px-4 py-3.5"><Badge tone={priority.tone}>{priority.label}</Badge></td>
-                                            <td className="px-4 py-3.5 text-slate-600">{inv.assigned_to?.username || 'Non assigné'}</td>
+                                            <td className="px-4 py-3.5 text-slate-600">{inv.assigned_to || 'Non assigné'}</td>
                                             <td className="px-4 py-3.5 text-xs">
                                                 <div className="text-slate-700">{new Date(inv.planned_start).toLocaleDateString()}</div>
                                                 <div className="text-slate-400 mt-0.5">{new Date(inv.planned_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>

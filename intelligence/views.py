@@ -1,4 +1,7 @@
 from rest_framework import viewsets, generics, permissions, status
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from .tasks import extract_features
 from rest_framework.response import Response
 from django.utils import timezone
 from .models import SensorData
@@ -19,10 +22,9 @@ class SensorDataViewSet(viewsets.ModelViewSet):
         # Enregistre la donnée et déclenche la mise à jour du risque en arrière-plan
         instance = serializer.save()
         update_risk_scores_for_machine.delay(instance.machine.id)
-
-class RiskScoreView(generics.GenericAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = RiskScoreSerializer
+    
+class RiskScoreView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, machine_id):
         try:
@@ -30,7 +32,7 @@ class RiskScoreView(generics.GenericAPIView):
         except Equipment.DoesNotExist:
             return Response({"error": "Machine non trouvée"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Charger les dernières données capteurs
+        # Récupérer les 24 dernières heures
         latest_data = SensorData.objects.filter(machine=machine).order_by('-timestamp')[:24]
         if len(latest_data) < 24:
             return Response({
@@ -40,7 +42,10 @@ class RiskScoreView(generics.GenericAPIView):
                 "message": "Pas assez de données (minimum 24h requis)"
             })
 
-        # Charger le modèle (si existant)
+        # Extraire les features
+        features = extract_features(latest_data)  # shape (1, 10)
+
+        # Charger le modèle
         model_path = os.path.join(settings.BASE_DIR, 'intelligence', 'models', 'random_forest.pkl')
         if not os.path.exists(model_path):
             return Response({
@@ -51,20 +56,7 @@ class RiskScoreView(generics.GenericAPIView):
             })
 
         model = joblib.load(model_path)
-        # Calcul des features (moyenne, écart-type, max, min sur 24h)
-        temps = [d.temperature for d in latest_data]
-        vibs = [d.vibration for d in latest_data]
-        hours = [d.operating_hours for d in latest_data]
-        cons = [d.consumption for d in latest_data]
-
-        features = np.array([
-            np.mean(temps), np.std(temps), np.max(temps), np.min(temps),
-            np.mean(vibs), np.std(vibs), np.max(vibs), np.min(vibs),
-            np.sum(hours), np.mean(cons)
-        ]).reshape(1, -1)
-
-        # Prédiction (probabilité)
-        proba = model.predict_proba(features)[0][1]  # probabilité de panne
+        proba = model.predict_proba(features)[0][1]
         risk_score = round(proba * 100, 2)
 
         return Response({

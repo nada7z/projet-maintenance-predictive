@@ -15,3 +15,17 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+class UserListView(generics.ListAPIView):
+    """
+    Liste tous les utilisateurs (accessible uniquement aux administrateurs
+    ou superviseurs si vous voulez restreindre).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserSerializer
+
+    def get_queryset(self):
+        # Optionnel : ne renvoyer que les techniciens si vous voulez
+        # return User.objects.filter(role='tech')
+        # Ou pour l'instant, renvoyer tous les utilisateurs
+        return User.objects.all()
