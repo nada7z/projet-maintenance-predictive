@@ -124,7 +124,7 @@ const AlertsList = () => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-medium text-slate-800">{alert.machine?.name || 'Machine'}</p>
+                                            <p className="text-sm font-medium text-slate-800">{alert.machine || 'Machine'}</p>
                                             {!alert.is_read && <span className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0" />}
                                             <Badge tone={badge.tone}>{badge.label}</Badge>
                                         </div>

@@ -4,21 +4,21 @@ const api = axios.create({
     baseURL: '/api',
 })
 
-// 🔐 Intercepteur de requête : ajoute TOUJOURS le token, sauf pour les endpoints d'auth
+// 🔐 Intercepteur de requête : ajoute le token SAUF pour login/refresh/register
 api.interceptors.request.use(
     (config) => {
-        // Ne pas ajouter de token pour les endpoints d'authentification (login, refresh, register)
-        const isAuthEndpoint = config.url.includes('/auth/')
+        // Liste des endpoints qui ne nécessitent PAS de token
+        const authEndpoints = ['/auth/login/', '/auth/refresh/', '/auth/register/']
+        const isAuthEndpoint = authEndpoints.some(endpoint => config.url.includes(endpoint))
+
         if (isAuthEndpoint) {
-            return config
+            return config // pas de token pour ces trois routes
         }
 
         const token = localStorage.getItem('access_token')
         if (token) {
             config.headers.Authorization = `Bearer ${token}`
         } else {
-            // Si aucun token et qu'on n'est pas sur une route d'auth, on redirige vers login
-            // mais on laisse la requête échouer pour que l'intercepteur de réponse puisse gérer
             console.warn(`⚠️ Aucun token pour ${config.url}`)
         }
         return config

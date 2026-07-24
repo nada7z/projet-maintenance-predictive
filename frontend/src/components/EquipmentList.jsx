@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/axiosConfig'
-import { Plus, Edit, Trash2, Package, TrendingUp } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, TrendingUp, Eye } from 'lucide-react'
 import Badge, { EQUIPMENT_STATUS, EQUIPMENT_CRITICALITY } from '../components/Badge'
 import { Select, SearchInput } from '../components/FormField'
 import { TableSkeleton, EmptyState } from '../components/ListState'
@@ -209,6 +209,13 @@ const EquipmentList = () => {
                                             </td>
                                             <td className="px-4 py-3.5 text-right">
                                                 <div className="flex items-center justify-end gap-1">
+                                                    <Link
+                                                        to={`/equipment/${eq.id}`}
+                                                        className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors duration-150"
+                                                        title="Voir les détails"
+                                                    >
+                                                        <Eye size={15} />
+                                                    </Link>
                                                     <button
                                                         onClick={() => navigate(`/equipment/edit/${eq.id}`)}
                                                         className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors duration-150"

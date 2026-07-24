@@ -68,33 +68,61 @@ def train_ai_model():
 
 @shared_task
 def update_risk_scores_for_machine(machine_id):
-    """Met à jour le score de risque pour une machine donnée (génère une alerte si > 70%)."""
     from notifications.models import Alert
+    from .tasks import extract_features
+    import joblib
+    import os
+    from django.conf import settings
+    import numpy as np
+
     try:
         machine = Equipment.objects.get(id=machine_id)
     except Equipment.DoesNotExist:
         return
 
-    # Simuler un calcul rapide (ou appeler le modèle)
-    # Ici, on va chercher le score via la même logique que dans la vue,
-    # mais on pourrait l'optimiser.
-    # Pour éviter la duplication, on va juste créer une alerte si la température moyenne > 75
-    # (simulation pour l'exemple)
     latest = SensorData.objects.filter(machine=machine).order_by('-timestamp')[:24]
     if len(latest) < 24:
         return
+
+    # Load model and compute risk score
+    model_path = os.path.join(settings.BASE_DIR, 'intelligence', 'models', 'random_forest.pkl')
+    if not os.path.exists(model_path):
+        return
+
+    model = joblib.load(model_path)
+    features = extract_features(latest)
+    proba = model.predict_proba(features)[0][1]
+    risk_score = round(proba * 100, 2)
+
     avg_temp = np.mean([d.temperature for d in latest])
-    if avg_temp > 75:
+    max_temp = np.max([d.temperature for d in latest])
+
+    alert_created = False
+    severity = 'warning'
+    message = ""
+
+    if max_temp > 90:
+        severity = 'critical'
+        message = f"⚠️ {machine.name} – TEMPÉRATURE CRITIQUE {max_temp}°C (IA: {risk_score}%)"
+        alert_created = True
+    elif risk_score > 70:
+        severity = 'critical'
+        message = f"🔴 {machine.name} – Risque de panne élevé : {risk_score}%"
+        alert_created = True
+    elif risk_score > 50:
+        severity = 'warning'
+        message = f"🟡 {machine.name} – Surveillance renforcée : risque à {risk_score}%"
+        alert_created = True
+
+    if alert_created:
         Alert.objects.create(
             machine=machine,
             type='predictive',
-            severity='critical',
-            message=f"Risque élevé de panne détecté (température moyenne {avg_temp:.1f}°C)"
+            severity=severity,
+            message=message
         )
-        # Envoyer un email si critique
         send_alert_email.delay(
-            subject="Alerte critique - Risque de panne",
-            message=f"La machine {machine.name} présente un risque de panne élevé.",
-            recipient_list=['admin@example.com']
+            subject=f"Alerte {severity} – {machine.name}",
+            message=f"Machine : {machine.name}\nScore IA : {risk_score}%\n{message}",
+            recipient_list=['maintenance@example.com']
         )
-

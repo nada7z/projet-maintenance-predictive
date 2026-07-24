@@ -1,15 +1,20 @@
-import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/axiosConfig'
 import { Plus, Eye, Edit, Trash2, Wrench } from 'lucide-react'
 import Badge, { INTERVENTION_STATUS, INTERVENTION_PRIORITY } from '../components/Badge'
-import { Select } from '../components/FormField'
+import { Select, SearchInput } from '../components/FormField'
 import { TableSkeleton, EmptyState } from '../components/ListState'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 
 const InterventionsList = () => {
     const [interventions, setInterventions] = useState([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState('')
+    const [search, setSearch] = useState('')
+    const [pendingDelete, setPendingDelete] = useState(null)
+    const [deleting, setDeleting] = useState(false)
+    const navigate = useNavigate()
 
     useEffect(() => {
         const fetchInterventions = async () => {
@@ -28,6 +33,31 @@ const InterventionsList = () => {
         fetchInterventions()
     }, [filter])
 
+    const confirmDelete = async () => {
+        if (!pendingDelete) return
+        setDeleting(true)
+        try {
+            await api.delete(`/interventions/${pendingDelete.id}/`)
+            setInterventions((prev) => prev.filter((inv) => inv.id !== pendingDelete.id))
+            setPendingDelete(null)
+        } catch (error) {
+            console.error('Erreur lors de la suppression', error)
+        } finally {
+            setDeleting(false)
+        }
+    }
+
+    const filteredInterventions = useMemo(() => {
+        if (!search) return interventions
+        const q = search.toLowerCase()
+        return interventions.filter(
+            (inv) =>
+                (inv.machine || '').toLowerCase().includes(q) ||
+                (inv.type || '').toLowerCase().includes(q) ||
+                (inv.assigned_to || '').toLowerCase().includes(q)
+        )
+    }, [interventions, search])
+
     return (
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -44,14 +74,23 @@ const InterventionsList = () => {
                 </Link>
             </div>
 
-            <div className="w-full sm:w-56">
-                <Select value={filter} onChange={(e) => setFilter(e.target.value)}>
-                    <option value="">Tous les statuts</option>
-                    <option value="planned">Planifiée</option>
-                    <option value="in_progress">En cours</option>
-                    <option value="completed">Terminée</option>
-                    <option value="cancelled">Annulée</option>
-                </Select>
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                    <SearchInput
+                        placeholder="Rechercher par machine, type ou technicien…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+                <div className="sm:w-56">
+                    <Select value={filter} onChange={(e) => setFilter(e.target.value)}>
+                        <option value="">Tous les statuts</option>
+                        <option value="planned">Planifiée</option>
+                        <option value="in_progress">En cours</option>
+                        <option value="completed">Terminée</option>
+                        <option value="cancelled">Annulée</option>
+                    </Select>
+                </div>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -69,7 +108,7 @@ const InterventionsList = () => {
                         </thead>
                         {!loading && (
                             <tbody className="divide-y divide-slate-100">
-                                {interventions.map((inv) => {
+                                {filteredInterventions.map((inv) => {
                                     const status = INTERVENTION_STATUS[inv.status] || { label: inv.status, tone: 'neutral' }
                                     const priority = INTERVENTION_PRIORITY[inv.priority] || { label: inv.priority, tone: 'neutral' }
                                     return (
@@ -87,13 +126,21 @@ const InterventionsList = () => {
                                             <td className="px-4 py-3.5"><Badge tone={status.tone}>{status.label}</Badge></td>
                                             <td className="px-4 py-3.5 text-right">
                                                 <div className="flex items-center justify-end gap-1">
-                                                    <button className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors duration-150" aria-label="Voir">
+                                                    <button
+                                                        onClick={() => navigate(`/interventions/${inv.id}`)}
+                                                        className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors duration-150"
+                                                        aria-label="Voir"
+                                                    >
                                                         <Eye size={15} />
                                                     </button>
                                                     <Link to={`/interventions/${inv.id}/edit`} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors duration-150" aria-label="Modifier">
                                                         <Edit size={15} />
                                                     </Link>
-                                                    <button className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors duration-150" aria-label="Supprimer">
+                                                    <button
+                                                        onClick={() => setPendingDelete(inv)}
+                                                        className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors duration-150"
+                                                        aria-label="Supprimer"
+                                                    >
                                                         <Trash2 size={15} />
                                                     </button>
                                                 </div>
@@ -105,20 +152,38 @@ const InterventionsList = () => {
                         )}
                     </table>
                     {loading && <TableSkeleton columns={6} rows={5} />}
-                    {!loading && interventions.length === 0 && (
+                    {!loading && filteredInterventions.length === 0 && (
                         <EmptyState
                             icon={Wrench}
-                            title="Aucune intervention"
-                            description="Les interventions planifiées ou en cours apparaîtront ici."
+                            title={search ? 'Aucun résultat' : 'Aucune intervention'}
+                            description={
+                                search
+                                    ? `Aucune intervention ne correspond à « ${search} ».`
+                                    : 'Les interventions planifiées ou en cours apparaîtront ici.'
+                            }
                         />
                     )}
                 </div>
-                {!loading && interventions.length > 0 && (
+                {!loading && filteredInterventions.length > 0 && (
                     <div className="px-4 py-2.5 border-t border-slate-100 text-xs text-slate-400">
-                        {interventions.length} intervention{interventions.length > 1 ? 's' : ''}
+                        {filteredInterventions.length} intervention{filteredInterventions.length > 1 ? 's' : ''}
                     </div>
                 )}
             </div>
+
+            <ConfirmDialog
+                open={pendingDelete !== null}
+                title="Supprimer cette intervention ?"
+                description={
+                    pendingDelete
+                        ? `L'intervention sur « ${pendingDelete.machine || 'cette machine'} » sera définitivement supprimée.`
+                        : ''
+                }
+                confirmLabel="Supprimer"
+                loading={deleting}
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </div>
     )
 }

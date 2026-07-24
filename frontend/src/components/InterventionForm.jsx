@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'  // 👈 added
 import api from '../api/axiosConfig'
 import { ArrowLeft, Wrench, AlertCircle, Loader2 } from 'lucide-react'
 import { Field, SectionLabel, Select, Input, Textarea } from '../components/FormField'
@@ -7,6 +8,9 @@ import { Field, SectionLabel, Select, Input, Textarea } from '../components/Form
 const InterventionForm = () => {
     const navigate = useNavigate()
     const { id } = useParams()
+    const { user } = useAuth()                    // 👈 added
+    const isTech = user?.role === 'tech'          // 👈 added
+
     const [loading, setLoading] = useState(false)
     const [initializing, setInitializing] = useState(Boolean(id))
     const [error, setError] = useState('')
@@ -31,7 +35,7 @@ const InterventionForm = () => {
             try {
                 const [machinesRes, usersRes] = await Promise.all([
                     api.get('/equipment/'),
-                    api.get('/auth/users/'), // Assurez-vous que cet endpoint existe
+                    api.get('/auth/users/'),
                 ])
                 setMachines(machinesRes.data)
                 setUsers(usersRes.data)
@@ -133,7 +137,13 @@ const InterventionForm = () => {
                         <SectionLabel>Machine et classification</SectionLabel>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Field label="Machine" required className="md:col-span-2">
-                                <Select name="machine" value={formData.machine} onChange={handleChange} required>
+                                <Select
+                                    name="machine"
+                                    value={formData.machine}
+                                    onChange={handleChange}
+                                    required
+                                    disabled={isTech}  // 👈 disabled for tech
+                                >
                                     <option value="">Sélectionner une machine</option>
                                     {machines.map((m) => (
                                         <option key={m.id} value={m.id}>
@@ -143,14 +153,14 @@ const InterventionForm = () => {
                                 </Select>
                             </Field>
                             <Field label="Type">
-                                <Select name="type" value={formData.type} onChange={handleChange}>
+                                <Select name="type" value={formData.type} onChange={handleChange} disabled={isTech}>
                                     <option value="corrective">Corrective</option>
                                     <option value="preventive">Préventive</option>
                                     <option value="predictive">Prédictive</option>
                                 </Select>
                             </Field>
                             <Field label="Priorité">
-                                <Select name="priority" value={formData.priority} onChange={handleChange}>
+                                <Select name="priority" value={formData.priority} onChange={handleChange} disabled={isTech}>
                                     <option value="low">Basse</option>
                                     <option value="medium">Moyenne</option>
                                     <option value="high">Haute</option>
@@ -165,7 +175,12 @@ const InterventionForm = () => {
                             <SectionLabel>Affectation et planification</SectionLabel>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Field label="Assigné à">
-                                    <Select name="assigned_to" value={formData.assigned_to} onChange={handleChange}>
+                                    <Select
+                                        name="assigned_to"
+                                        value={formData.assigned_to}
+                                        onChange={handleChange}
+                                        disabled={isTech}  // 👈 disabled for tech
+                                    >
                                         <option value="">Non assigné</option>
                                         {users.map((u) => (
                                             <option key={u.id} value={u.id}>
@@ -175,7 +190,12 @@ const InterventionForm = () => {
                                     </Select>
                                 </Field>
                                 <Field label="Statut">
-                                    <Select name="status" value={formData.status} onChange={handleChange}>
+                                    <Select
+                                        name="status"
+                                        value={formData.status}
+                                        onChange={handleChange}
+                                    // 👈 tech can change status
+                                    >
                                         <option value="planned">Planifiée</option>
                                         <option value="in_progress">En cours</option>
                                         <option value="completed">Terminée</option>
@@ -189,6 +209,7 @@ const InterventionForm = () => {
                                         value={formData.planned_start}
                                         onChange={handleChange}
                                         required
+                                        disabled={isTech}  // 👈 disabled for tech
                                     />
                                 </Field>
                                 <Field label="Fin prévue" required>
@@ -198,6 +219,7 @@ const InterventionForm = () => {
                                         value={formData.planned_end}
                                         onChange={handleChange}
                                         required
+                                        disabled={isTech}  // 👈 disabled for tech
                                     />
                                 </Field>
                             </div>
@@ -217,6 +239,7 @@ const InterventionForm = () => {
                                         min="0"
                                         step="0.01"
                                         placeholder="0.00"
+                                        disabled={isTech}  // 👈 disabled for tech (optional)
                                     />
                                 </Field>
                                 <Field label="Temps d'arrêt (minutes)">
@@ -227,6 +250,7 @@ const InterventionForm = () => {
                                         onChange={handleChange}
                                         min="0"
                                         placeholder="0"
+                                        disabled={isTech}  // 👈 disabled for tech (optional)
                                     />
                                 </Field>
                                 <Field label="Description" className="md:col-span-2">
@@ -236,6 +260,7 @@ const InterventionForm = () => {
                                         onChange={handleChange}
                                         rows="3"
                                         placeholder="Nature de l'intervention, symptômes observés…"
+                                        disabled={isTech}  // 👈 disabled for tech
                                     />
                                 </Field>
                                 <Field label="Rapport (compte-rendu)" className="md:col-span-2">
@@ -245,6 +270,7 @@ const InterventionForm = () => {
                                         onChange={handleChange}
                                         rows="3"
                                         placeholder="Actions réalisées, pièces remplacées…"
+                                    // 👈 tech can edit the report (kept enabled)
                                     />
                                 </Field>
                             </div>
