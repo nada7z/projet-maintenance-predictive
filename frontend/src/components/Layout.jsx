@@ -18,7 +18,6 @@ const Layout = ({ children }) => {
     const location = useLocation()
     const [sidebarOpen, setSidebarOpen] = useState(true)
 
-    // 👇 Dynamic navigation based on role
     const getNavItems = () => {
         const adminItems = [
             { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -28,7 +27,7 @@ const Layout = ({ children }) => {
             { path: '/reports', label: 'Rapports', icon: FileText },
         ]
         const techItems = [
-            { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },   // 👈 added
+            { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
             { path: '/interventions', label: 'Mes interventions', icon: Wrench },
             { path: '/alerts', label: 'Alertes', icon: Bell },
         ]
@@ -46,11 +45,11 @@ const Layout = ({ children }) => {
         navigate('/login')
     }
 
-    // ---- The rest of the component is identical ----
     return (
         <div className="flex h-screen bg-slate-50">
+            {/* Sidebar */}
             <aside className={`${sidebarOpen ? 'w-64' : 'w-[68px]'} bg-white border-r border-slate-200 flex flex-col transition-all duration-200 fixed h-full z-50`}>
-                {/* Logo section unchanged */}
+                {/* Logo */}
                 <div className="flex items-center justify-between h-16 px-4 border-b border-slate-100">
                     <div className="flex items-center gap-2.5 overflow-hidden">
                         <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">OCP</div>
@@ -122,26 +121,9 @@ const Layout = ({ children }) => {
                 </div>
             </aside>
 
+            {/* Main content – SANS LE HEADER */}
             <main className={`flex-1 flex flex-col min-w-0 ${sidebarOpen ? 'ml-64' : 'ml-[68px]'} transition-all duration-200`}>
-                <header className="h-16 bg-white/90 backdrop-blur-sm border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40 flex-shrink-0">
-                    <div>
-                        <h1 className="text-base font-semibold text-slate-800 leading-tight">{currentItem?.label || 'Tableau de bord'}</h1>
-                        <p className="text-xs text-slate-400 leading-tight mt-0.5">
-                            {user?.role === 'admin' && 'Administrateur'}
-                            {user?.role === 'supervisor' && 'Responsable maintenance'}
-                            {user?.role === 'tech' && 'Technicien'}
-                            {!user?.role && ' '}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors duration-150" aria-label="Notifications">
-                            <Bell size={18} className="text-slate-500" />
-                            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full ring-2 ring-white"></span>
-                        </button>
-                        <div className="w-px h-6 bg-slate-200 mx-1" />
-                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-medium text-xs">{initials}</div>
-                    </div>
-                </header>
+                {/* 👇 LE HEADER ENTIER A ÉTÉ SUPPRIMÉ */}
                 <div className="flex-1 overflow-y-auto p-6">{children}</div>
             </main>
         </div>

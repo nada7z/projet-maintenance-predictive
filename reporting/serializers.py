@@ -6,3 +6,4 @@ class ReportSerializer(serializers.ModelSerializer):
         model = Report
         fields = '__all__'
         read_only_fields = ('generated_by', 'generated_at', 'file')
+        depth = 1

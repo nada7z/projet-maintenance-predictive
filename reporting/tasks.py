@@ -1,44 +1,54 @@
+import logging
+import os
+import io
+from datetime import datetime
+from io import BytesIO
+
+import joblib
+import matplotlib.pyplot as plt
 from celery import shared_task
 from django.conf import settings
 from django.core.files import File
+from django.db.models import Count
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
 from openpyxl import Workbook
-import os
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
 from .models import Report
 from equipment.models import Equipment
 from maintenance.models import Intervention
+from intelligence.models import SensorData
 from notifications.tasks import send_alert_email
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
 
 @shared_task
 def generate_report_task(user_id, report_type, format_type, filters):
-    """Génère un rapport (PDF ou Excel) en arrière-plan."""
-    # Générer le contenu du rapport
+    logger.info(f"🔍 Génération rapport - user_id: {user_id}, type: {report_type}, format: {format_type}")
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    try:
+        user = User.objects.get(id=user_id)
+        logger.info(f"✅ Utilisateur trouvé : {user.username} (ID: {user.id})")
+    except User.DoesNotExist:
+        logger.error(f"❌ Utilisateur {user_id} introuvable !")
+        user = None
+
     if format_type == 'pdf':
         file_content = generate_pdf_report(report_type, filters)
         extension = 'pdf'
-        content_type = 'application/pdf'
-    else:  # excel
+    else:
         file_content = generate_excel_report(report_type, filters)
         extension = 'xlsx'
-        content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-
-    # Sauvegarder dans le modèle Report
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
-    user = User.objects.get(id=user_id)
 
     file_name = f"report_{report_type}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.{extension}"
-    file_path = os.path.join('reports', file_name)
-
     report = Report.objects.create(
         title=f"Rapport {report_type} - {timezone.now().date()}",
         type=report_type,
@@ -46,30 +56,20 @@ def generate_report_task(user_id, report_type, format_type, filters):
         generated_by=user,
         parameters=filters,
     )
-
-    # Sauvegarder le fichier
     report.file.save(file_name, File(BytesIO(file_content)), save=True)
 
-    # Notifier l'utilisateur (email)
-    send_alert_email.delay(
-        subject=f"Rapport {report_type} généré",
-        message=f"Votre rapport {report_type} est disponible dans l'application.",
-        recipient_list=[user.email]
-    )
+    if user and user.email:
+        send_alert_email.delay(
+            subject=f"Rapport {report_type} généré",
+            message=f"Votre rapport {report_type} est disponible dans l'application.",
+            recipient_list=[user.email]
+        )
 
     return report.id
 
+
 def generate_pdf_report(report_type, filters):
-    """
-    Génère un rapport PDF complet avec :
-    - En-tête avec titre, date, type de rapport
-    - Tableau des équipements (nom, modèle, statut, criticité)
-    - Statistiques récapitulatives
-    - Liste des interventions (si demandé)
-    """
     buffer = BytesIO()
-    
-    # Créer le document PDF
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
@@ -78,8 +78,7 @@ def generate_pdf_report(report_type, filters):
         topMargin=2*cm,
         bottomMargin=2*cm,
     )
-    
-    # Styles
+
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
@@ -87,7 +86,7 @@ def generate_pdf_report(report_type, filters):
         fontSize=24,
         textColor=colors.HexColor('#1e3a8a'),
         spaceAfter=30,
-        alignment=1,  # Centré
+        alignment=1,
     )
     heading_style = ParagraphStyle(
         'CustomHeading',
@@ -97,21 +96,17 @@ def generate_pdf_report(report_type, filters):
         spaceAfter=12,
     )
     normal_style = styles['Normal']
-    
-    # Éléments du document
+
     elements = []
-    
-    # --- 1. EN-TÊTE ---
-    # Titre
+
+    # --- Titre ---
     title = f"Rapport {dict(Report.TYPE_CHOICES).get(report_type, report_type).upper()}"
     elements.append(Paragraph(title, title_style))
-    
-    # Date et heure
     now = timezone.now().strftime('%d/%m/%Y à %H:%M')
     elements.append(Paragraph(f"Généré le {now}", normal_style))
     elements.append(Spacer(1, 0.5*cm))
-    
-    # Filtres appliqués
+
+    # Filtres
     if filters:
         filter_text = "Filtres appliqués : "
         if filters.get('date_from'):
@@ -119,17 +114,20 @@ def generate_pdf_report(report_type, filters):
         if filters.get('date_to'):
             filter_text += f"au {filters['date_to']} "
         if filters.get('machine'):
-            filter_text += f"| Machine ID: {filters['machine']}"
+            try:
+                machine = Equipment.objects.get(id=filters['machine'])
+                filter_text += f"| Machine : {machine.name}"
+            except Equipment.DoesNotExist:
+                filter_text += f"| Machine ID: {filters['machine']}"
         elements.append(Paragraph(filter_text, normal_style))
-    
     elements.append(Spacer(1, 0.5*cm))
-    
-    # --- 2. STATISTIQUES RAPIDES ---
+
+    # --- Statistiques ---
     total_machines = Equipment.objects.count()
     active_machines = Equipment.objects.filter(status='active').count()
     maintenance_machines = Equipment.objects.filter(status='maintenance').count()
     out_machines = Equipment.objects.filter(status='out_of_service').count()
-    
+
     stats_data = [
         ['Total machines', str(total_machines)],
         ['Actives', str(active_machines)],
@@ -151,40 +149,70 @@ def generate_pdf_report(report_type, filters):
     elements.append(Paragraph("📊 Résumé du parc", heading_style))
     elements.append(stats_table)
     elements.append(Spacer(1, 0.5*cm))
-    
-    # --- 3. TABLEAU DES ÉQUIPEMENTS ---
-    # Filtrer les équipements si demandé
+
+    # --- Graphique des interventions mensuelles ---
+    elements.append(Paragraph("📈 Évolution mensuelle des interventions", heading_style))
+    six_months_ago = timezone.now() - timezone.timedelta(days=180)
+    monthly_data = (
+        Intervention.objects
+        .filter(created_at__gte=six_months_ago)
+        .annotate(month=TruncMonth('created_at'))
+        .values('month')
+        .annotate(count=Count('id'))
+        .order_by('month')
+    )
+    if monthly_data:
+        months = [item['month'].strftime('%Y-%m') for item in monthly_data]
+        counts = [item['count'] for item in monthly_data]
+        plt.figure(figsize=(6, 3))
+        plt.bar(months, counts, color='#2563eb')
+        plt.title('Interventions par mois')
+        plt.xlabel('Mois')
+        plt.ylabel('Nombre')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=100)
+        buf.seek(0)
+        # ✅ On passe directement buf à Image (plus besoin de ImageReader)
+        elements.append(Image(buf, width=12*cm, height=6*cm))
+        plt.close()
+    else:
+        elements.append(Paragraph("Aucune donnée d'intervention récente.", normal_style))
+    elements.append(Spacer(1, 0.5*cm))
+
+    # --- Tableau des équipements avec score de risque ---
     equipments = Equipment.objects.all()
     if filters and filters.get('machine'):
         equipments = equipments.filter(id=filters['machine'])
-    
-    # En-tête du tableau
-    table_data = [
-        ['Nom', 'Modèle', 'Statut', 'Criticité', 'Localisation']
-    ]
-    
-    # Lignes du tableau
+
+    model_path = os.path.join(settings.BASE_DIR, 'intelligence', 'models', 'random_forest.pkl')
+    model = None
+    if os.path.exists(model_path):
+        model = joblib.load(model_path)
+        from intelligence.tasks import extract_features
+
+    table_data = [['Nom', 'Modèle', 'Statut', 'Criticité', 'Localisation', 'Risque (%)']]
     for eq in equipments:
-        status_map = {
-            'active': 'Actif',
-            'maintenance': 'En maintenance',
-            'out_of_service': 'Hors service'
-        }
-        criticality_map = {
-            'low': 'Basse',
-            'medium': 'Moyenne',
-            'high': 'Élevée'
-        }
+        risk = '—'
+        if model:
+            latest = SensorData.objects.filter(machine=eq).order_by('-timestamp')[:24]
+            if len(latest) >= 24:
+                features = extract_features(latest)
+                proba = model.predict_proba(features)[0][1]
+                risk = f"{round(proba * 100, 1)}%"
+        status_map = {'active': 'Actif', 'maintenance': 'En maintenance', 'out_of_service': 'Hors service'}
+        criticality_map = {'low': 'Basse', 'medium': 'Moyenne', 'high': 'Élevée'}
         table_data.append([
             eq.name,
             eq.model,
             status_map.get(eq.status, eq.status),
             criticality_map.get(eq.criticality, eq.criticality),
-            eq.location or '—'
+            eq.location or '—',
+            risk
         ])
-    
-    # Créer le tableau
-    col_widths = [4*cm, 4*cm, 3.5*cm, 3*cm, 4*cm]
+
+    col_widths = [3.5*cm, 3.5*cm, 3*cm, 2.5*cm, 3.5*cm, 2.5*cm]
     eq_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     eq_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
@@ -198,24 +226,16 @@ def generate_pdf_report(report_type, filters):
         ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8fafc'), colors.HexColor('#ffffff')]),
     ]))
-    
     elements.append(Paragraph("📋 Liste des équipements", heading_style))
     elements.append(eq_table)
-    
-    # --- 4. INTERVENTIONS RÉCENTES (optionnel) ---
-    # Ajouter une section avec les interventions des 30 derniers jours
+    elements.append(Spacer(1, 0.5*cm))
+
+    # --- Interventions récentes ---
     thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-    recent_interventions = Intervention.objects.filter(
-        created_at__gte=thirty_days_ago
-    )[:10]
-    
+    recent_interventions = Intervention.objects.filter(created_at__gte=thirty_days_ago)[:10]
     if recent_interventions:
-        elements.append(Spacer(1, 0.5*cm))
         elements.append(Paragraph("🔧 Interventions récentes (30 jours)", heading_style))
-        
-        inter_data = [
-            ['Machine', 'Type', 'Statut', 'Date']
-        ]
+        inter_data = [['Machine', 'Type', 'Statut', 'Date']]
         for inv in recent_interventions:
             inter_data.append([
                 inv.machine.name if inv.machine else 'N/A',
@@ -223,7 +243,6 @@ def generate_pdf_report(report_type, filters):
                 inv.status,
                 inv.created_at.strftime('%d/%m/%Y')
             ])
-        
         inter_table = Table(inter_data, colWidths=[4*cm, 3*cm, 3.5*cm, 3.5*cm])
         inter_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a8a')),
@@ -238,27 +257,28 @@ def generate_pdf_report(report_type, filters):
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8fafc'), colors.HexColor('#ffffff')]),
         ]))
         elements.append(inter_table)
-    
-    # --- 5. PIED DE PAGE ---
+
     elements.append(Spacer(1, 1*cm))
     elements.append(Paragraph(
         f"Document généré par OCP Maintenance - {datetime.now().strftime('%Y')}",
         ParagraphStyle('Footer', parent=normal_style, fontSize=8, textColor=colors.HexColor('#94a3b8'), alignment=1)
     ))
-    
-    # Construire le PDF
+
     doc.build(elements)
     buffer.seek(0)
     return buffer.getvalue()
 
+
 def generate_excel_report(report_type, filters):
     wb = Workbook()
-    
-    # Feuille "Équipements"
+
     ws = wb.active
     ws.title = "Équipements"
     ws.append(["Nom", "Modèle", "Statut", "Criticité", "Localisation"])
-    for machine in Equipment.objects.all():
+    equipments = Equipment.objects.all()
+    if filters and filters.get('machine'):
+        equipments = equipments.filter(id=filters['machine'])
+    for machine in equipments:
         ws.append([
             machine.name,
             machine.model,
@@ -266,27 +286,42 @@ def generate_excel_report(report_type, filters):
             machine.criticality,
             machine.location or ''
         ])
-    
-    # Feuille "Statistiques"
+
     ws_stats = wb.create_sheet("Statistiques")
     ws_stats.append(["Métrique", "Valeur"])
     ws_stats.append(["Total machines", Equipment.objects.count()])
     ws_stats.append(["Actives", Equipment.objects.filter(status='active').count()])
     ws_stats.append(["En maintenance", Equipment.objects.filter(status='maintenance').count()])
     ws_stats.append(["Hors service", Equipment.objects.filter(status='out_of_service').count()])
-    
-    # Feuille "Interventions" (optionnel)
+
+    ws_risk = wb.create_sheet("Risques")
+    ws_risk.append(["Machine", "Dernier score (%)", "Date du calcul"])
+    model_path = os.path.join(settings.BASE_DIR, 'intelligence', 'models', 'random_forest.pkl')
+    if os.path.exists(model_path):
+        model = joblib.load(model_path)
+        from intelligence.tasks import extract_features
+        for machine in Equipment.objects.all():
+            latest = SensorData.objects.filter(machine=machine).order_by('-timestamp')[:24]
+            if len(latest) >= 24:
+                features = extract_features(latest)
+                proba = model.predict_proba(features)[0][1]
+                risk = round(proba * 100, 1)
+                last_ts = latest[0].timestamp.strftime('%Y-%m-%d %H:%M')
+                ws_risk.append([machine.name, risk, last_ts])
+            else:
+                ws_risk.append([machine.name, '—', 'Données insuffisantes'])
+
     ws_inter = wb.create_sheet("Interventions")
     ws_inter.append(["Machine", "Type", "Statut", "Date"])
-    from maintenance.models import Intervention
-    for inv in Intervention.objects.all().order_by('-created_at')[:50]:
+    interventions = Intervention.objects.all().order_by('-created_at')[:50]
+    for inv in interventions:
         ws_inter.append([
             inv.machine.name if inv.machine else '',
             inv.type,
             inv.status,
             inv.created_at.strftime('%d/%m/%Y')
         ])
-    
+
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)

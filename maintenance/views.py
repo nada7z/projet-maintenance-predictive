@@ -8,11 +8,19 @@ class InterventionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Filtrer par technicien si ce n'est pas un admin/supervisor
+        queryset = super().get_queryset()
         user = self.request.user
-        if user.role in ['admin', 'supervisor']:
-            return super().get_queryset()
-        return super().get_queryset().filter(assigned_to=user)
+
+        # Filtrer par rôle (technicien ne voit que ses interventions)
+        if user.role not in ['admin', 'supervisor']:
+            queryset = queryset.filter(assigned_to=user)
+
+        # ✅ Filtrer par statut (si fourni)
+        status = self.request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        return queryset
 
 class PreventiveScheduleViewSet(viewsets.ModelViewSet):
     queryset = PreventiveSchedule.objects.all()

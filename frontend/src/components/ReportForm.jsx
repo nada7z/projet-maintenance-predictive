@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axiosConfig'
 import { ArrowLeft, FileText, AlertCircle, Loader2 } from 'lucide-react'
@@ -8,6 +8,7 @@ const ReportForm = () => {
     const navigate = useNavigate()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+    const [machines, setMachines] = useState([])
     const [formData, setFormData] = useState({
         type: 'monthly',
         format: 'pdf',
@@ -17,6 +18,19 @@ const ReportForm = () => {
             machine: '',
         },
     })
+
+    // Charger la liste des machines pour le filtre
+    useEffect(() => {
+        const fetchMachines = async () => {
+            try {
+                const response = await api.get('/equipment/')
+                setMachines(response.data)
+            } catch (err) {
+                console.error('Erreur chargement machines', err)
+            }
+        }
+        fetchMachines()
+    }, [])
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -119,14 +133,19 @@ const ReportForm = () => {
                                         onChange={handleFilterChange}
                                     />
                                 </Field>
-                                <Field label="Machine (ID)" className="md:col-span-2" hint="Laisser vide pour inclure toutes les machines">
-                                    <Input
-                                        type="text"
+                                <Field label="Machine" className="md:col-span-2" hint="Laisser vide pour inclure toutes les machines">
+                                    <Select
                                         name="machine"
                                         value={formData.filters.machine}
                                         onChange={handleFilterChange}
-                                        placeholder="Ex. 14"
-                                    />
+                                    >
+                                        <option value="">Toutes les machines</option>
+                                        {machines.map((m) => (
+                                            <option key={m.id} value={m.id}>
+                                                {m.name} ({m.serial_number})
+                                            </option>
+                                        ))}
+                                    </Select>
                                 </Field>
                             </div>
                         </div>
